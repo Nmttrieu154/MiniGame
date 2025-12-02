@@ -49,20 +49,12 @@ class CaroAI:
             if self._check_win(board, x, y, ai_symbol):
                 return (x, y)
         
-        # 2. Block thắng NGAY LẬP TỨC
+        # 2. Block 5 liên tiếp ngay
         for x, y in valid_moves:
             if self._check_win(board, x, y, player_symbol):
                 return (x, y)
         
-        # 3. Block chuỗi 4 của player (rất nguy hiểm!)
-        for x, y in valid_moves:
-            board[y][x] = player_symbol
-            if self._count_max_line(board, x, y, player_symbol) >= 4:
-                board[y][x] = 0
-                return (x, y)
-            board[y][x] = 0
-        
-        # 4. Tạo chuỗi 4 của AI (chuẩn bị thắng)
+        # 3. Tấn công: Nếu AI đánh ở đó = thắng (4 quân + 1 nước nữa)
         for x, y in valid_moves:
             board[y][x] = ai_symbol
             if self._count_max_line(board, x, y, ai_symbol) >= 4:
@@ -70,12 +62,35 @@ class CaroAI:
                 return (x, y)
             board[y][x] = 0
         
-        # 5. Dùng Minimax nếu trained
+        # 4. Block chuỗi 4 của player (nguy hiểm cực độ!)
+        for x, y in valid_moves:
+            board[y][x] = player_symbol
+            if self._count_max_line(board, x, y, player_symbol) >= 4:
+                board[y][x] = 0
+                return (x, y)
+            board[y][x] = 0
+        
+        # 5. Block chuỗi 3 ở mọi hướng (player còn 1 nước là thắng)
+        for x, y in valid_moves:
+            for dx, dy in [(1,0), (0,1), (1,1), (1,-1)]:
+                count = self._count_line(board, x, y, player_symbol, dx, dy)
+                if count >= 3:
+                    return (x, y)
+        
+        # 5. Tạo chuỗi 4 của AI (chuẩn bị thắng)
+        for x, y in valid_moves:
+            board[y][x] = ai_symbol
+            if self._count_max_line(board, x, y, ai_symbol) >= 4:
+                board[y][x] = 0
+                return (x, y)
+            board[y][x] = 0
+        
+        # 6. Dùng Minimax nếu trained
         if self.is_trained and self.difficulty in ["medium", "hard"]:
             depth = 3 if self.difficulty == "hard" else 2
             return self._minimax_move(board, valid_moves, ai_symbol, player_symbol, depth)
         
-        # 6. Heuristic
+        # 7. Heuristic
         return self._heuristic_move(board, valid_moves, ai_symbol, player_symbol)
     
     def _minimax_move(self, board, valid_moves, ai_sym, player_sym, depth):
