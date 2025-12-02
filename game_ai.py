@@ -1,67 +1,170 @@
-# game_ai.py - CẬP NHẬT với Timer + Chặn 2 đầu + Nhấp nháy
+# game_ai.py - GIAO DIỆN GIỐNG HỆT HÌNH MẪU
 import pygame
 import time
 from ai import CaroAI
 
 pygame.init()
-CELL_SIZE = 40
+CELL_SIZE = 35
 BOARD_SIZE = 15
-WIDTH = CELL_SIZE * BOARD_SIZE + 220
-HEIGHT = CELL_SIZE * BOARD_SIZE + 100
+WIDTH = 1200
+HEIGHT = 700
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Cờ Caro - AI Mode")
 clock = pygame.time.Clock()
 
-BG_COLOR = (245, 222, 179)
-LINE_COLOR = (0, 0, 0)
-X_COLOR = (200, 30, 60)
-O_COLOR = (30, 100, 255)
-PANEL_COLOR = (20, 30, 70)
-PANEL_BORDER = (100, 180, 255)
-BLINK_COLOR = (255, 215, 0)
+BG_COLOR = (20, 30, 48)
+BOARD_BG = (230, 210, 180)
+LINE_COLOR = (139, 115, 85)
+X_COLOR = (59, 130, 246)  # ← ĐỔI THÀNH MÀU XANH DƯƠNG
+O_COLOR = (239, 68, 68)
+PANEL_BG = (30, 41, 59)
+PANEL_BORDER = (52, 211, 153)
+TOP_BAR_BG = (15, 23, 42)
+CIRCLE_OUTER = (15, 23, 42)
+BLINK_COLOR = (251, 146, 60)
 
-TURN_TIME_LIMIT = 30  # 30 giây
+TURN_TIME_LIMIT = 30
 
 def get_font(size, bold=False):
-    return pygame.font.SysFont("Segoe UI", size, bold=bold)
+    for font_name in ["Segoe UI", "Arial", "Tahoma", "Verdana"]:
+        try:
+            return pygame.font.SysFont(font_name, size, bold=bold)
+        except:
+            continue
+    return pygame.font.Font(None, size)
 
-f_title = get_font(42, True)
-f_big = get_font(36, True)
-f_med = get_font(30)
-f_win = get_font(90, True)
-f_timer = get_font(48, True)
+f_title = get_font(40, True)
+f_big = get_font(32, True)
+f_med = get_font(28)
+f_small = get_font(22)
+f_timer = get_font(60, True)
+f_win = get_font(80, True)
 
 def draw_board(board, blink_positions=None):
-    """Vẽ bàn cờ với hiệu ứng nhấp nháy"""
+    """Vẽ bàn cờ"""
     screen.fill(BG_COLOR)
     
-    # Vẽ lưới
-    for i in range(BOARD_SIZE + 1):
-        pygame.draw.line(screen, LINE_COLOR, (60, 60 + i*CELL_SIZE), 
-                         (60 + BOARD_SIZE*CELL_SIZE, 60 + i*CELL_SIZE), 2)
-        pygame.draw.line(screen, LINE_COLOR, (60 + i*CELL_SIZE, 60), 
-                         (60 + i*CELL_SIZE, 60 + BOARD_SIZE*CELL_SIZE), 2)
+    board_x = (WIDTH - BOARD_SIZE * CELL_SIZE) // 2
+    board_y = 130
+    board_width = BOARD_SIZE * CELL_SIZE
+    board_height = BOARD_SIZE * CELL_SIZE
     
-    # Nhấp nháy cho chuỗi 4
+    outer_border = pygame.Rect(board_x - 15, board_y - 15, 
+                               board_width + 30, board_height + 30)
+    pygame.draw.rect(screen, PANEL_BORDER, outer_border, 8)
+    
+    board_rect = pygame.Rect(board_x, board_y, board_width, board_height)
+    pygame.draw.rect(screen, BOARD_BG, board_rect)
+    
+    for i in range(BOARD_SIZE + 1):
+        pygame.draw.line(screen, LINE_COLOR, 
+                        (board_x, board_y + i * CELL_SIZE),
+                        (board_x + board_width, board_y + i * CELL_SIZE), 2)
+        pygame.draw.line(screen, LINE_COLOR,
+                        (board_x + i * CELL_SIZE, board_y),
+                        (board_x + i * CELL_SIZE, board_y + board_height), 2)
+    
     blink_on = (int(pygame.time.get_ticks() / 300) % 2 == 0)
     
-    # Vẽ quân cờ
     for y in range(15):
         for x in range(15):
-            center_x = 60 + x * CELL_SIZE + CELL_SIZE // 2
-            center_y = 60 + y * CELL_SIZE + CELL_SIZE // 2
+            center_x = board_x + x * CELL_SIZE + CELL_SIZE // 2
+            center_y = board_y + y * CELL_SIZE + CELL_SIZE // 2
             
-            # Kiểm tra có nhấp nháy không
             should_blink = blink_positions and (x, y) in blink_positions
             
             if board[y][x] == 1:
                 color = BLINK_COLOR if (should_blink and blink_on) else X_COLOR
-                pygame.draw.line(screen, color, (center_x-18, center_y-18), 
-                                (center_x+18, center_y+18), 10)
-                pygame.draw.line(screen, color, (center_x-18, center_y+18), 
-                                (center_x+18, center_y-18), 10)
+                size = 13
+                pygame.draw.line(screen, color, (center_x-size, center_y-size), 
+                                (center_x+size, center_y+size), 7)
+                pygame.draw.line(screen, color, (center_x-size, center_y+size), 
+                                (center_x+size, center_y-size), 7)
             elif board[y][x] == 2:
                 color = BLINK_COLOR if (should_blink and blink_on) else O_COLOR
-                pygame.draw.circle(screen, color, (center_x, center_y), 20, 9)
+                pygame.draw.circle(screen, color, (center_x, center_y), 15, 6)
+    
+    return board_x, board_y, board_width, board_height
+
+def draw_player_panel(x, y, name, symbol, is_turn=False, time_left=None, is_ai=False):
+    """Vẽ panel người chơi - HIỂN THỊ TIMER"""
+    panel_w = 210
+    panel_h = 340
+    
+    outer_rect = pygame.Rect(x, y, panel_w, panel_h)
+    pygame.draw.rect(screen, PANEL_BORDER, outer_rect, 6)
+    
+    inner_rect = pygame.Rect(x + 6, y + 6, panel_w - 12, panel_h - 12)
+    pygame.draw.rect(screen, PANEL_BG, inner_rect)
+    
+    if is_turn:
+        glow_rect = pygame.Rect(x - 5, y - 5, panel_w + 10, panel_h + 10)
+        for i in range(3):
+            alpha_surface = pygame.Surface((panel_w + 10, panel_h + 10), pygame.SRCALPHA)
+            pygame.draw.rect(alpha_surface, (*PANEL_BORDER, 50 - i*15), (i, i, panel_w + 10 - i*2, panel_h + 10 - i*2), 2)
+            screen.blit(alpha_surface, (glow_rect.x, glow_rect.y))
+    
+    circle_y = y + 100
+    circle_center = (x + panel_w // 2, circle_y)
+    
+    # Avatar với màu theo symbol
+    circle_bg_color = X_COLOR if symbol == "X" else O_COLOR
+    pygame.draw.circle(screen, circle_bg_color, circle_center, 65)
+    pygame.draw.circle(screen, PANEL_BORDER, circle_center, 65, 5)
+    
+    if symbol == "X":
+        size = 28
+        symbol_color = (255, 255, 255)  # Trắng để tương phản
+        pygame.draw.line(screen, symbol_color, 
+                        (circle_center[0]-size, circle_center[1]-size),
+                        (circle_center[0]+size, circle_center[1]+size), 9)
+        pygame.draw.line(screen, symbol_color,
+                        (circle_center[0]-size, circle_center[1]+size),
+                        (circle_center[0]+size, circle_center[1]-size), 9)
+    else:
+        pygame.draw.circle(screen, (255, 255, 255), circle_center, 30, 8)
+    
+    name_surf = f_med.render(name[:8], True, (255, 255, 255))
+    name_rect = name_surf.get_rect(center=(x + panel_w // 2, circle_y + 85))
+    screen.blit(name_surf, name_rect)
+    
+    box_y = circle_y + 120
+    box_rect = pygame.Rect(x + 25, box_y, panel_w - 50, 90)
+    pygame.draw.rect(screen, CIRCLE_OUTER, box_rect, border_radius=8)
+    pygame.draw.rect(screen, PANEL_BORDER, box_rect, 4, border_radius=8)
+    
+    # HIỂN THỊ TIMER hoặc status
+    if time_left is not None and is_turn and not is_ai:
+        # Hiển thị timer cho người chơi
+        if time_left <= 5:
+            timer_color = (255, 50, 50)
+        elif time_left <= 10:
+            timer_color = (255, 150, 0)
+        else:
+            timer_color = (100, 255, 100)
+        
+        timer_surf = f_timer.render(str(time_left), True, timer_color)
+        timer_rect = timer_surf.get_rect(center=(x + panel_w // 2, box_y + 35))
+        screen.blit(timer_surf, timer_rect)
+        
+        sec_surf = f_small.render("giây", True, (200, 200, 200))
+        sec_rect = sec_surf.get_rect(center=(x + panel_w // 2, box_y + 65))
+        screen.blit(sec_surf, sec_rect)
+    else:
+        # Hiển thị status
+        if is_ai and is_turn:
+            status_text = "AI đang tính..."
+            status_color = (255, 200, 0)
+        elif is_turn:
+            status_text = "Lượt bạn!"
+            status_color = (100, 255, 100)
+        else:
+            status_text = "Đợi..."
+            status_color = (150, 150, 150)
+        
+        status_surf = f_med.render(status_text, True, status_color)
+        status_rect = status_surf.get_rect(center=(x + panel_w // 2, box_y + 45))
+        screen.blit(status_surf, status_rect)
 
 def check_win(board, x, y, player):
     """Kiểm tra thắng với rule chặn 2 đầu"""
@@ -71,7 +174,6 @@ def check_win(board, x, y, player):
         count = 1
         positions = [(x, y)]
         
-        # Đếm về phía trước
         for i in range(1, 5):
             nx, ny = x + dx*i, y + dy*i
             if not (0 <= nx < 15 and 0 <= ny < 15 and board[ny][nx] == player):
@@ -79,7 +181,6 @@ def check_win(board, x, y, player):
             count += 1
             positions.append((nx, ny))
         
-        # Đếm về phía sau
         for i in range(1, 5):
             nx, ny = x - dx*i, y - dy*i
             if not (0 <= nx < 15 and 0 <= ny < 15 and board[ny][nx] == player):
@@ -87,14 +188,11 @@ def check_win(board, x, y, player):
             count += 1
             positions.insert(0, (nx, ny))
         
-        # Nếu có 5 quân
         if count >= 5:
-            # Kiểm tra chặn 2 đầu
             first_5 = positions[:5]
             start_x, start_y = first_5[0]
             end_x, end_y = first_5[-1]
             
-            # Kiểm tra ô trước điểm bắt đầu
             before_x = start_x - dx
             before_y = start_y - dy
             before_blocked = False
@@ -104,7 +202,6 @@ def check_win(board, x, y, player):
             else:
                 before_blocked = True
             
-            # Kiểm tra ô sau điểm kết thúc
             after_x = end_x + dx
             after_y = end_y + dy
             after_blocked = False
@@ -114,7 +211,6 @@ def check_win(board, x, y, player):
             else:
                 after_blocked = True
             
-            # Nếu bị chặn 2 đầu thì không thắng
             if before_blocked and after_blocked:
                 continue
             
@@ -123,7 +219,7 @@ def check_win(board, x, y, player):
     return False
 
 def find_four_in_row(board):
-    """Tìm tất cả chuỗi 4 quân liên tiếp để nhấp nháy"""
+    """Tìm chuỗi 4"""
     blink_positions = set()
     dirs = [(1,0), (0,1), (1,1), (1,-1)]
     
@@ -138,7 +234,6 @@ def find_four_in_row(board):
                 count = 1
                 positions = [(x, y)]
                 
-                # Đếm về phía trước
                 for i in range(1, 4):
                     nx, ny = x + dx*i, y + dy*i
                     if not (0 <= nx < 15 and 0 <= ny < 15 and board[ny][nx] == player):
@@ -146,9 +241,7 @@ def find_four_in_row(board):
                     count += 1
                     positions.append((nx, ny))
                 
-                # Nếu có đúng 4 quân và 2 đầu không bị chặn
                 if count == 4:
-                    # Kiểm tra 2 đầu
                     start_x, start_y = positions[0]
                     end_x, end_y = positions[-1]
                     
@@ -162,32 +255,24 @@ def find_four_in_row(board):
                     after_open = (0 <= after_x < 15 and 0 <= after_y < 15 and 
                                   board[after_y][after_x] == 0)
                     
-                    # Nếu ít nhất 1 đầu còn trống
                     if before_open or after_open:
                         blink_positions.update(positions)
     
     return blink_positions
 
 def main(player_name, difficulty="medium"):
-    """
-    difficulty: "easy", "medium", "hard"
-    """
     board = [[0] * 15 for _ in range(15)]
     ai = CaroAI(difficulty=difficulty)
     
-    player_symbol = 1  # X
-    ai_symbol = 2      # O
+    player_symbol = 1
+    ai_symbol = 2
     my_turn = True
     game_over = False
     winner_name = ""
     ai_thinking = False
     
-    # Timer
     turn_start_time = time.time()
     time_left = TURN_TIME_LIMIT
-    
-    print(f"[GAME AI] 🤖 AI Mode: {difficulty}")
-    print(f"[GAME AI] 🎮 Player: {player_name} (X), AI ({difficulty}) (O)")
     
     running = True
     while running:
@@ -196,11 +281,9 @@ def main(player_name, difficulty="medium"):
             elapsed = time.time() - turn_start_time
             time_left = max(0, TURN_TIME_LIMIT - int(elapsed))
             
-            # Hết giờ
             if time_left <= 0:
                 game_over = True
                 winner_name = "AI (Timeout)"
-                print("[GAME AI] ⏰ Hết giờ!")
         
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -208,107 +291,82 @@ def main(player_name, difficulty="medium"):
             
             if event.type == pygame.MOUSEBUTTONDOWN and my_turn and not game_over and not ai_thinking:
                 mx, my = event.pos
-                if 60 <= mx <= 60 + BOARD_SIZE * CELL_SIZE and 60 <= my <= 60 + BOARD_SIZE * CELL_SIZE:
-                    col = (mx - 60) // CELL_SIZE
-                    row = (my - 60) // CELL_SIZE
+                board_x = (WIDTH - BOARD_SIZE * CELL_SIZE) // 2
+                board_y = 130
+                if board_x <= mx <= board_x + BOARD_SIZE * CELL_SIZE and board_y <= my <= board_y + BOARD_SIZE * CELL_SIZE:
+                    col = (mx - board_x) // CELL_SIZE
+                    row = (my - board_y) // CELL_SIZE
                     
                     if board[row][col] == 0:
                         board[row][col] = player_symbol
-                        print(f"[GAME AI] ♟️ Bạn đánh: ({col}, {row})")
                         
                         if check_win(board, col, row, player_symbol):
                             game_over = True
                             winner_name = player_name
-                            print(f"[GAME AI] 🏆 {player_name} thắng!")
                         else:
                             my_turn = False
                             ai_thinking = True
         
-        # AI tính toán nước đi
+        # AI tính toán
         if not my_turn and not game_over and ai_thinking:
             ai_move = ai.get_move(board, ai_symbol, player_symbol)
             if ai_move:
                 x, y = ai_move
                 board[y][x] = ai_symbol
-                print(f"[GAME AI] 🤖 AI đánh: ({x}, {y})")
                 
                 if check_win(board, x, y, ai_symbol):
                     game_over = True
                     winner_name = "AI"
-                    print(f"[GAME AI] 🏆 AI thắng!")
                 else:
                     my_turn = True
-                    turn_start_time = time.time()
+                    turn_start_time = time.time()  # Reset timer
                     time_left = TURN_TIME_LIMIT
             
             ai_thinking = False
         
-        # Vẽ board với nhấp nháy
         blink_positions = find_four_in_row(board) if not game_over else set()
-        draw_board(board, blink_positions)
+        board_x, board_y, board_w, board_h = draw_board(board, blink_positions)
         
-        # Vẽ panel bên phải
-        panel = pygame.Rect(WIDTH-210, 10, 200, HEIGHT-20)
-        pygame.draw.rect(screen, PANEL_COLOR, panel, border_radius=25)
-        pygame.draw.rect(screen, PANEL_BORDER, panel, 6, border_radius=25)
+        # Top bar
+        top_rect = pygame.Rect(0, 0, WIDTH, 80)
+        pygame.draw.rect(screen, TOP_BAR_BG, top_rect)
+        pygame.draw.rect(screen, PANEL_BORDER, (0, 75, WIDTH, 5))
         
-        y_pos = 50
-        screen.blit(f_title.render("CỜ CARO", True, (255, 215, 0)), (WIDTH - 200, y_pos)); y_pos += 55
+        mode_surf = f_title.render(f"PHÒNG: AI-{difficulty.upper()}", True, PANEL_BORDER)
+        mode_rect = mode_surf.get_rect(center=(WIDTH // 2, 40))
+        screen.blit(mode_surf, mode_rect)
         
-        difficulty_text = "🎯 Mode: " + difficulty.upper()
-        screen.blit(f_med.render(difficulty_text, True, (180, 255, 180)), (WIDTH - 200, y_pos)); y_pos += 50
+        # Panels
+        board_x = (WIDTH - BOARD_SIZE * CELL_SIZE) // 2
         
-        screen.blit(f_med.render(f"Bạn: {player_name}", True, (100, 255, 150)), (WIDTH - 200, y_pos)); y_pos += 50
-        screen.blit(f_med.render("AI: Máy tính", True, (255, 120, 120)), (WIDTH - 200, y_pos)); y_pos += 50
+        # Left panel (Player)
+        left_panel_x = board_x - 210 - 40
+        draw_player_panel(left_panel_x, 160, player_name, "X", 
+                         my_turn and not game_over, 
+                         time_left if my_turn else None, False)
         
-        screen.blit(f_big.render("X", True, X_COLOR), (WIDTH - 110, y_pos)); y_pos += 70
-        
-        # Hiển thị timer
-        if not game_over and not ai_thinking:
-            if my_turn:
-                timer_color = (255, 0, 0) if time_left <= 10 else (255, 215, 0)
-                timer_text = f_timer.render(f"{time_left}s", True, timer_color)
-                screen.blit(timer_text, (WIDTH - 130, y_pos))
-                y_pos += 70
-        
-        if game_over:
-            status = "KẾT THÚC!"
-            status_col = (255, 215, 0)
-        elif ai_thinking:
-            status = "AI ĐANG TÍNH..."
-            status_col = (255, 150, 0)
-            if int(pygame.time.get_ticks() / 300) % 2:
-                status_col = (255, 200, 0)
-        elif my_turn:
-            status = "LƯỢT CỦA BẠN!"
-            status_col = (0, 255, 0)
-            if int(pygame.time.get_ticks() / 300) % 2:
-                status_col = (50, 255, 50)
-        else:
-            status = "LƯỢT AI..."
-            status_col = (255, 200, 0)
-        
-        status_surf = f_big.render(status, True, status_col)
-        screen.blit(status_surf, (WIDTH - 200, 380))
+        # Right panel (AI)
+        right_panel_x = board_x + BOARD_SIZE * CELL_SIZE + 40
+        draw_player_panel(right_panel_x, 160, "AI", "O", 
+                         not my_turn and not game_over, None, True)
         
         if game_over:
             overlay = pygame.Surface((WIDTH, HEIGHT))
-            overlay.set_alpha(180)
+            overlay.set_alpha(220)
             overlay.fill((0, 0, 0))
             screen.blit(overlay, (0, 0))
             
-            win_text = f"{winner_name} THẮNG!"
-            win_surf = f_win.render(win_text, True, (255, 215, 0))
+            win_surf = f_win.render(f"{winner_name}", True, PANEL_BORDER)
             screen.blit(win_surf, (WIDTH//2 - win_surf.get_width()//2, HEIGHT//2 - 100))
             
+            win_label = f_big.render("CHIẾN THẮNG!", True, (255, 255, 255))
+            screen.blit(win_label, (WIDTH//2 - win_label.get_width()//2, HEIGHT//2 - 20))
+            
             again = f_med.render("Đóng cửa sổ để về menu", True, (200, 200, 200))
-            screen.blit(again, (WIDTH//2 - again.get_width()//2, HEIGHT//2 + 20))
+            screen.blit(again, (WIDTH//2 - again.get_width()//2, HEIGHT//2 + 40))
         
         pygame.display.flip()
         clock.tick(60)
-    
-    print("[GAME AI] 🛑 Game kết thúc")
 
 if __name__ == "__main__":
-    # Test: python game_ai.py
     main("Player", difficulty="medium")
